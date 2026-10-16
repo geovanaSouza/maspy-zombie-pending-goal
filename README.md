@@ -16,14 +16,16 @@ The expected effect is:
 
 1. `goal_a` is processed first and becomes a pending Goal.
 2. `goal_b` is processed afterward and becomes a second pending Goal.
-3. The first pending Goal expires before the second can be retried.
-4. The second Goal remains behind the expired pending item and is never retried.
+3. `permission_b` is granted later, so `goal_b`'s context is now satisfied.
+4. The first pending Goal expires before the second can be retried.
+5. The second Goal remains behind the expired pending item and is never retried, even though its context is now satisfied.
 
 Example output:
 
 ```text
 Agent:Z> Doesnt have Plan with proper context for Event gain:Goal goal_a()[self]
 Agent:Z> Doesnt have Plan with proper context for Event gain:Goal goal_b()[self]
+GRANTING permission_b (B's context is now satisfied)
 TIMEOUT / observation: B was never reprocessed because A expired at the front
 SYSTEM ENDED
 ```
