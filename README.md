@@ -33,3 +33,23 @@ SYSTEM ENDED
 ```bash
 python examples/zombie_pending_goal.py
 ```
+
+## Contrast: within the pending window, Goal A can fail and Goal B can proceed
+
+The second example keeps the same kind of pending window, but the retry happens
+inside the default 20-cycle window. Here `goal_a` fails and `goal_b` eventually runs:
+
+```text
+Agent:Z> Doesnt have Plan with proper context for Event gain:Goal goal_a()[self]
+Agent:Z> B EXECUTED
+```
+
+Run:
+
+```bash
+python examples/within_window_goal_b_runs.py
+```
+
+The expected behavior is that the pending item for `goal_a` can be treated as
+failed within the window, which frees the front of the pending queue and allows
+`goal_b` to run later.
