@@ -7,7 +7,7 @@ PYTHON ?= $(VENV)/bin/python
 
 setup: ## Create the virtual environment and install project dependencies
 	uv venv $(VENV) --python 3.12
-	uv pip install --python $(PYTHON) maspy-ml
+	uv pip install --python $(PYTHON) -e .
 
 run-zombie: ## Run the zombie pending goal example
 	$(PYTHON) examples/zombie_pending_goal.py
