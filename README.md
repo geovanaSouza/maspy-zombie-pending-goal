@@ -10,7 +10,8 @@ The agent creates two goals:
 - `goal_a`
 - `goal_b`
 
-Both depend on a belief that never arrives: `Belief("never_here")`.
+- `goal_a` depends on `Belief("never_here")`, which never arrives.
+- `goal_b` depends on `Belief("permission_b")`, which is granted later.
 
 The expected effect is:
 
@@ -32,6 +33,15 @@ SYSTEM ENDED
 
 ## Run
 
+Using the Makefile:
+
+```bash
+make setup
+make run-zombie
+```
+
+Or directly with Python:
+
 ```bash
 python examples/zombie_pending_goal.py
 ```
@@ -46,7 +56,13 @@ Agent:Z> Doesnt have Plan with proper context for Event gain:Goal goal_a()[self]
 Agent:Z> B EXECUTED
 ```
 
-Run:
+Using the Makefile:
+
+```bash
+make run-within-window
+```
+
+Or directly with Python:
 
 ```bash
 python examples/within_window_goal_b_runs.py
