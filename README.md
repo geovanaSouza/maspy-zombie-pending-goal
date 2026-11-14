@@ -1,44 +1,56 @@
 # maspy-zombie-pending-goal
 
-Small reproducible example showing how an expired pending Goal can occupy the front of `_pending_events` and prevent a newer Goal from being retried.
+Reproducible example for [laca-is/MASPY#24](https://github.com/laca-is/MASPY/issues/24) — an expired pending Goal occupying the front of `Agent._pending_events` blocked later pending Goals, which were never retried even after their context became satisfied.
 
-## What to observe
+The issue was fixed in `maspy-ml==2026.11.12`. This repo now serves as a deterministic A/B test: the same script reproduces the bug on `2026.5.13` and shows the fix on `2026.11.12`.
 
-`zombie_pending_goal.py` creates two goals:
+## What the example does
 
-- `goal_a` depends on `Belief("never_here")`, which never arrives.
-- `goal_b` depends on `Belief("permission_b")`, which is granted later.
+`zombie_pending_goal.py` is fully cycle-based — no sleeps, no threads, no wall-clock timing:
 
-A noise feeder keeps the normal event queue busy past the default 20-cycle window, so the pending item for `goal_a` is never retried in time and expires at the front of the queue. When `permission_b` arrives, `goal_b`'s context is satisfied, but `goal_b` sits behind the expired `goal_a` and is never retried.
+- `goal_a` depends on `Belief("never_here")`, which never arrives, so it is parked in `_pending_events` (window: `PENDING_TIMER = 20` cycles from cycle ~1, expiring around cycle 21).
+- `goal_b` depends on `Belief("permission_b")`, which is granted by the agent itself at `GRANT_AT_CYCLE = 18` — inside the window.
+- A self-perpetuating noise chain keeps the agent's cycle counter advancing deterministically until `STOP_NOISE_AT_CYCLE = 20`, so the first idle check of the pending queue happens right when `goal_a`'s window has just expired.
 
-Expected output:
+Note: the pending window is measured in reasoning cycles, not wall-clock time, so its real-world duration depends on the agent's event load.
+
+## Observed behavior per version
+
+**`maspy-ml==2026.5.13` (bug):** the pending queue freezes on the first idle check after `goal_a` expires — the front is expired, so `_select_event` never pops it, and nothing behind it is ever retried. `goal_b` is never reprocessed even though `permission_b` has been satisfied since cycle ~20. The agent idles forever (the process has to be killed).
 
 ```text
 Doesnt have Plan with proper context for Event gain:Goal goal_a()[self]
 Doesnt have Plan with proper context for Event gain:Goal goal_b()[self]
-GRANTING permission_b
-LOG: permission_b arrived; goal_b context is now satisfied
-TIMEOUT / observation: B was never reprocessed because A expired at the front
+LOG: permission_b added at cycle 20; goal_b context is now satisfied
+(nothing else — agent idles forever)
+```
+
+**`maspy-ml==2026.11.12` (fixed):** the expired `goal_a` is retried, removed from the goal base and a `failure` event is emitted; the queue advances and `goal_b` is reprocessed and executes.
+
+```text
+LOG: permission_b added at cycle 19; goal_b context is now satisfied
+Doesnt have Plan with proper context for Event gain:Goal goal_a()[self]
+Doesnt have Plan with proper context for Event gain:Goal goal_b()[self]
+Doesnt have Plan with proper context for Pending Event gain:Goal goal_a()[self]
+B EXECUTED (cycle 24)
 SYSTEM ENDED
 ```
 
-## Run
+## Run the A/B test
 
-Using the Makefile:
-
-```bash
-make setup        # create the venv and install the published MASPY
-make run-zombie   # run the example
-make run-all      # run all examples
-```
-
-Or directly with Python:
+The default setup installs the fixed version. To reproduce the bug, install the old version explicitly:
 
 ```bash
-python examples/zombie_pending_goal.py
+make setup          # create the venv and install maspy-ml==2026.11.12 (fixed, pyproject pin)
+make run-zombie     # fixed: goal_a fails+removed, B EXECUTED, system ends
+
+make install-maspy MASPY="maspy-ml==2026.5.13"  # the version with the bug
+make run-zombie     # old behavior: hangs, goal_b never reprocessed (kill the process)
+
+make install-maspy  # back to the latest published maspy-ml
 ```
 
-The expiry is reported through a MASPY debug log, so it only shows with logging enabled. `run-zombie-log` sets `MASPY_LOG=1`, which the example reads to turn on `Admin(console_log=True)`:
+MASPY debug logging can be turned on to inspect the cycles; `run-zombie-log` sets `MASPY_LOG=1`, which the example reads to enable `Admin(console_log=True)`:
 
 ```bash
 make run-zombie-log
@@ -48,7 +60,7 @@ Run `make help` for the full, up-to-date list of targets.
 
 ## Contrast: within the pending window, Goal A can fail and Goal B can proceed
 
-`within_window_goal_b_runs.py` keeps the same kind of pending window, but the retry happens inside the default 20-cycle window. Here `goal_a` fails and `goal_b` runs:
+`within_window_goal_b_runs.py` keeps the same kind of pending window, but the context arrives before the retry, so `goal_a` fails and `goal_b` runs:
 
 ```text
 Agent:Z> Doesnt have Plan with proper context for Event gain:Goal goal_a()[self]
@@ -61,10 +73,11 @@ make run-within-window
 
 ## Choosing the MASPY version
 
-`make setup` installs the published `maspy-ml` from PyPI, which is the default. To test a fork, a git ref or a local checkout, override the `MASPY` requirement:
+`make setup` installs the published `maspy-ml` from the pin in `pyproject.toml` (`2026.11.12`, the fixed version). To test the pre-fix version, a fork, a git ref or a local checkout, override the `MASPY` requirement:
 
 ```bash
+make install-maspy MASPY="maspy-ml==2026.5.13"       # the version with the bug (laca-is/MASPY#24)
 make install-maspy MASPY="git+https://github.com/<fork>/MASPY.git@<branch>"
 make install-maspy MASPY="-e ../MASPY"
-make install-maspy                                   # back to the published package
+make install-maspy                                   # back to the latest published package
 ```
