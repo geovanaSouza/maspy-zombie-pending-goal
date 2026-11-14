@@ -1,8 +1,9 @@
 import os
-import threading
-import time
 
 from maspy import *
+
+GRANT_AT_CYCLE = 18
+STOP_NOISE_AT_CYCLE = 20
 
 
 class Z(Agent):
@@ -12,46 +13,35 @@ class Z(Agent):
 
     @pl(gain, Goal("goal_b"), context=Belief("permission_b"))
     def b(self, src):
-        self.print("B EXECUTED")
+        self.print(f"B EXECUTED (cycle {self.cycle_counter})")
         self.stop_cycle()
 
     @pl(gain, Belief("permission_b"))
     def on_permission(self, src):
-        print("LOG: permission_b arrived; goal_b context is now satisfied", flush=True)
+        print(
+            f"LOG: permission_b added at cycle {self.cycle_counter}; "
+            "goal_b context is now satisfied",
+            flush=True,
+        )
 
-    # Non-blocking noise plan: keeps __events busy without blocking the agent cycle
+    # Self-perpetuating noise: each processed noise adds the next one, so the
+    # agent always has a normal event to process and the cycle counter ticks
+    # deterministically until STOP_NOISE_AT_CYCLE.
     @pl(gain, Belief("noise"))
     def noise(self, src):
-        self.print("Processing noise")
-        pass
+        if self.cycle_counter >= STOP_NOISE_AT_CYCLE:
+            return  # noise chain ends; agent goes idle until the pending retry
+        self.add(Belief("noise"), instant=False)
+        if self.cycle_counter >= GRANT_AT_CYCLE and not self.has(Belief("permission_b")):
+            self.add(Belief("permission_b"), instant=False)
 
 
 if __name__ == "__main__":
-    # Set MASPY_LOG to enable MASPY logging (and show the debug log of the expiry)
+    # Set MASPY_LOG to enable MASPY logging (and show the debug log of the cycles)
     if os.environ.get("MASPY_LOG"):
         Admin(console_log=True)
     ag = Z(goals=[Goal("goal_a"), Goal("goal_b")])
-
-    def noise_feeder():
-        # Add one noise belief at a time so the agent always has a normal event
-        # to process and never reaches the pending queue before the window expires
-        for _ in range(21):
-            time.sleep(0.1)
-            ag.add(Belief("noise"))
-
-    def grant_permission_after_window():
-        time.sleep(3.0)
-        print("GRANTING permission_b", flush=True)
-        ag.add(Belief("permission_b"))
-
-    def expire_and_stop():
-        time.sleep(10.0)
-        print("TIMEOUT / observation: B was never reprocessed because A expired at the front", flush=True)
-        ag.stop_cycle()
-
-    threading.Thread(target=noise_feeder, daemon=True).start()
-    threading.Thread(target=grant_permission_after_window, daemon=True).start()
-    threading.Thread(target=expire_and_stop, daemon=True).start()
+    ag.add(Belief("noise"), instant=False)  # seeds the noise chain
 
     Admin().start_system()
     print("SYSTEM ENDED", flush=True)
