@@ -38,12 +38,16 @@ SYSTEM ENDED
 
 ## Run the A/B test
 
+The default setup installs the fixed version. To reproduce the bug, install the old version explicitly:
+
 ```bash
-make setup          # create the venv and install maspy-ml==2026.5.13 (pyproject pin)
+make setup          # create the venv and install maspy-ml==2026.11.12 (fixed, pyproject pin)
+make run-zombie     # fixed: goal_a fails+removed, B EXECUTED, system ends
+
+make install-maspy MASPY="maspy-ml==2026.5.13"  # the version with the bug
 make run-zombie     # old behavior: hangs, goal_b never reprocessed (kill the process)
 
-make install-maspy  # install the latest published maspy-ml (2026.11.12)
-make run-zombie     # fixed: goal_a fails+removed, B EXECUTED, system ends
+make install-maspy  # back to the latest published maspy-ml
 ```
 
 MASPY debug logging can be turned on to inspect the cycles; `run-zombie-log` sets `MASPY_LOG=1`, which the example reads to enable `Admin(console_log=True)`:
@@ -69,10 +73,10 @@ make run-within-window
 
 ## Choosing the MASPY version
 
-`make setup` installs the published `maspy-ml` from the pin in `pyproject.toml` (`2026.5.13`, the version with the bug). To test a different version, a fork, a git ref or a local checkout, override the `MASPY` requirement:
+`make setup` installs the published `maspy-ml` from the pin in `pyproject.toml` (`2026.11.12`, the fixed version). To test the pre-fix version, a fork, a git ref or a local checkout, override the `MASPY` requirement:
 
 ```bash
-make install-maspy MASPY="maspy-ml==2026.11.12"       # pinned version
+make install-maspy MASPY="maspy-ml==2026.5.13"       # the version with the bug (laca-is/MASPY#24)
 make install-maspy MASPY="git+https://github.com/<fork>/MASPY.git@<branch>"
 make install-maspy MASPY="-e ../MASPY"
 make install-maspy                                   # back to the latest published package

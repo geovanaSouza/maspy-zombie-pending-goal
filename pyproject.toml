@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "maspy-zombie-pending-goal"
 version = "0.1.0"
-description = "Reproducible example showing how an expired pending Goal can block later Goals."
+description = "A/B test for laca-is/MASPY#24: expired pending Goal blocking later Goals, fixed in maspy-ml 2026.11.12."
 requires-python = ">=3.12"
 dependencies = [
-    "maspy-ml==2026.5.13",
+    "maspy-ml==2026.11.12",
 ]
